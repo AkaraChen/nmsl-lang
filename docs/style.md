@@ -168,12 +168,13 @@ print(a, b)
 | 目的 | 写法 |
 |---|---|
 | 判空 | `nulls.Is(x)` |
+| 判断错误 | `!nulls.Is(err)` |
 | 默认值 | `nulls.Coalesce(x, d)` |
 | 字符串内容相等 | `s.equals(t)` |
 | 字符串顺序 | `strcmp(s, t) < 0` |
 | 数字相等 | `a == b` |
 
-永远不要用 `==` 判断 null。
+永远不要用 `==` 判断 null。永远不要写 `if (err != null)`。
 
 ### 4.6 赋值不要写在条件里
 
@@ -219,6 +220,14 @@ sleep(1000)
 ### 6.5 退出码
 
 需要以非 0 退出时，使用 `exit(1)`。退出码只取低 8 位，请使用 1–255 之间的值。
+
+### 6.6 错误
+
+- 可能失败的方法返回 `(值, error)`，error 放在最后。
+- 每个 `return` 都写全返回值的个数：`return 0, err`、`return n, null`。
+- 先 `!nulls.Is(err)` 判断，再 `errors.Wrap`。
+- 哨兵错误统一定义在 `AErrors.nmsl` 的 `AErrors` 类里，保证它先于其他类初始化。
+- 不要在库代码里 `panic`。
 
 ## 7. 测试
 

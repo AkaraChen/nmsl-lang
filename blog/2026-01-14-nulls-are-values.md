@@ -66,34 +66,18 @@ user.getAddress().getCity().getName()
 
 ## nulls 包
 
-`nulls` 包的 API 与 Go 的 `errors` 包一一对应。我们这样做，是为了让从 Go 过来的开发者有熟悉感。
+`nulls` 包只有两个函数：
 
 | 函数 | 实现 |
 |---|---|
 | `nulls.Is(x)` | x 为 null 时返回 1，否则 0 |
 | `nulls.Coalesce(a, b, ...)` | 返回第一个不是 null 的参数 |
-| `nulls.New(msg)` | `return NUL;` |
-| `nulls.Wrap(x, ctx)` | x 为 null 时 `return NUL;`，否则返回 x |
-| `nulls.Unwrap(x)` | `return x;` |
-| `nulls.Join(a, b, ...)` | `return NUL;` |
 
-是的，`nulls.New` 的实现就是一行 `return NUL;`，`msg` 不被保留。`nulls.Wrap` 在 `x` 为 `null` 时也返回 `null`，`ctx` 不被保留。`nulls.Join` 同样是一行 `return NUL;`。
+我们收到过不少提案，希望 `nulls` 能带上一条消息，说明「这个 null 是怎么来的」。我们仔细考虑过。一个记住了消息的 null，就不再是 null 了，它是一个对象，而一个对象就需要类、字段、getter 和 setter。
 
-我们收到过不少提案，希望 `New` 能「记住」传进去的消息。我们仔细考虑过。一个记住了消息的 null，就不再是 null 了，它是一个对象，而一个对象就需要类、字段、getter 和 setter。那样我们就重新发明了异常，只是换了个名字。
+需要消息的时候，你要的不是 null，是 `error`。nmsl 有 `error`，它和 Go 的一样，是值（见《Errors are values, and so is null》）。而当一切顺利、没有错误的时候，返回的是什么？是 null。
 
-`nulls.New("connection refused")` 的意义在于：它让你的代码读起来像是在处理错误，而它实际做的事情，就是返回 null。代码表达了意图，运行时保持了简单。这两件事不矛盾。
-
-```
-class Main
-    public static void main(String[] args)
-        var err = nulls.New("connection refused")
-        var wrapped = nulls.Wrap(err, "loading config")
-        print(nulls.Is(err))       // 1
-        print(nulls.Is(wrapped))   // 1
-        print(wrapped)             // 空行
-```
-
-消息去了哪里？它完成了它的使命：被你写下来，被下一个读代码的人看到。
+null 和 error 各司其职：一个表示没有，一个表示出了问题。两个函数，覆盖全部需求。
 
 ## 结语
 

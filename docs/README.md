@@ -9,7 +9,7 @@ nmsl 的规范就是 `main` 分支上编译器的行为（[SPEC 序言](../SPEC.
 | 文档 | 内容 |
 |---|---|
 | [快速开始](quickstart.md) | 安装前提、Hello World、`nmsl build` 与 `nmsl run`、第一次编译时需要知道的几件事 |
-| [语言之旅](tour.md) | 一小时走完整门语言：块、分号、标识符、类型、数字、字符串、null、相等、运算符、控制流、作用域、类、lambda、容器、模块、并发、退出 |
+| [语言之旅](tour.md) | 一小时走完整门语言：块、分号、标识符、类型、数字、字符串、null、相等、运算符、控制流、作用域、类、lambda、容器、模块、错误、并发、退出 |
 
 ## 专题
 
@@ -17,6 +17,7 @@ nmsl 的规范就是 `main` 分支上编译器的行为（[SPEC 序言](../SPEC.
 |---|---|
 | [相等性速查表](equality.md) | `==`、`.equals`、`is` 在各类值组合上的结果；真值表；`!=` 与 `<` |
 | [null 与 nulls 包最佳实践](nulls.md) | 两条最佳实践、判空、默认值、`nulls` 包、推荐模式 |
+| [错误处理](errors.md) | 多返回值、`!nulls.Is(err)`、`errors` 包、哨兵错误、两种错误约定、`panic` |
 | [工厂与 getter/setter](factories-and-accessors.md) | `make`、工厂类、构造函数、访问器、`equals`/`hashCode`、继承 |
 | [模块与导入](modules.md) | `import`、路径规则、全局命名空间、重复与循环导入、编译列表与初始化顺序、`nmsl get` |
 

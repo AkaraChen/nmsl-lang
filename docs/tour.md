@@ -418,7 +418,25 @@ import "lib/model"
 
 详见[模块与导入](modules.md)。
 
-## 16. 并发
+## 16. 错误
+
+错误是值。可能失败的方法多返回一个 `error`：
+
+```
+public static (number, error) parse(String s)
+    var n, err = ParseInt(s)
+    if (!nulls.Is(err))
+        return 0, errors.Wrap(err, "parse")
+    return n, null
+```
+
+没有错误时返回 `null`。判断错误只能写 `!nulls.Is(err)`；`if (err != null)` 永远不进入，因为它是一个碰到了 `null` 的运算。接收了 err 却不使用，是编译错误。
+
+`panic(msg)` 打印消息后终止进程，无法恢复。`try`、`catch`、`throw`、`defer`、`recover` 是保留字。详见[错误处理](errors.md)。
+
+SPEC：4.8
+
+## 17. 并发
 
 ```
 spawn(() -> Worker.run())
@@ -429,16 +447,17 @@ sleep(1000)
 
 SPEC：7.3
 
-## 17. 程序的结束
+## 18. 程序的结束
 
 - `main` 正常结束，退出码为 0。
 - `exit(n)` 以 `n` 的低 8 位退出：`exit(256)` 的退出码是 0。
-- nmsl 没有运行时错误。值不符合预期时，`null` 会安静地传下去；访问了不该访问的内存时，进程终止。
+- nmsl 没有运行时错误。错误是值，由方法返回；值不符合预期时，`null` 会安静地传下去；访问了不该访问的内存时，进程终止。
 
 | 情形 | 你会看到 |
 |---|---|
 | 数组越界、写字符串字面量 | `Segmentation fault (core dumped)` |
 | 整数除以 0 | `Floating point exception` |
+| `panic(msg)` | `Aborted (core dumped)` |
 | 内存耗尽 | `Killed` |
 
 nmsl 程序不会崩溃，只会终止。

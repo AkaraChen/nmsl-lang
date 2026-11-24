@@ -189,6 +189,8 @@ normalize(id) = id[0] + lower(remove("_", id[1:]))
 | `interface` | reserved for future use |
 | `goto` | reserved for future use |
 | `go` | reserved for future use |
+| `defer` | reserved for future use |
+| `recover` | reserved for future use |
 
 保留字在文法中没有任何对应的产生式。在任何位置使用保留字（包括作为变量名、方法名、类名）都是编译错误：
 
@@ -196,7 +198,7 @@ normalize(id) = id[0] + lower(remove("_", id[1:]))
 reserved for future use: new
 ```
 
-保留字对应的功能将在 nmsl 2 中提供（见 10.1）。
+保留字对应的功能将在 nmsl 2 中提供（见 10.1）。nmsl 1 的错误以值的形式返回（4.8），不需要 `try`、`catch`、`throw`；`panic`（4.8.8）之后不需要恢复，因此不需要 `defer`、`recover`。
 
 1.6.3 类型名（`number`、`String` 等，见 3.2）和内置函数名（`print`、`make` 等，见第 8 章）不是关键字。
 
@@ -308,7 +310,8 @@ ClassDecl   = "class" IDENT [ "extends" IDENT ] [ TERM ] INDENT { Member } DEDEN
 Member      = FieldDecl | MethodDecl | CtorDecl .
 FieldDecl   = Type IDENT TERM
             | "static" Type IDENT [ "=" Expr ] TERM .
-MethodDecl  = { Modifier } Type IDENT "(" [ Params ] ")" [ TERM ] Block .
+MethodDecl  = { Modifier } ResultType IDENT "(" [ Params ] ")" [ TERM ] Block .
+ResultType  = Type | "(" Type "," Type { "," Type } ")" .
 CtorDecl    = { Modifier } IDENT "(" ")" [ TERM ] Block .
 Modifier    = "public" | "private" | "static" .
 Params      = Param { "," Param } .
@@ -321,7 +324,9 @@ Param       = Type IDENT .
 
 2.3.3 构造函数是名字与类名相同、没有返回类型、没有参数的方法。
 
-2.3.4 类名后写类型参数（`class Box<T>`）是编译错误：
+2.3.4 **多返回值。** 返回类型可以是括号中的两个或更多类型，例如 `(number, error)`。多返回值的语义见 4.8。
+
+2.3.5 类名后写类型参数（`class Box<T>`）是编译错误：
 
 ```
 generics are coming in nmsl 2
@@ -337,12 +342,16 @@ Stmt        = Block
             | WhileStmt
             | ForStmt
             | SwitchStmt
-            | "return" [ Expr ] TERM
+            | MultiAssign TERM
+            | "return" [ Expr { "," Expr } ] TERM
             | "break" TERM
             | Expr TERM
             | TERM .
 VarDecl     = Type IDENT [ "=" Expr ]
-            | "var" IDENT "=" Expr .
+            | "var" IDENT "=" Expr
+            | "var" IDENT "," IDENT { "," IDENT } "=" Expr .
+MultiAssign = Target "," Target { "," Target } "=" Expr .
+Target      = IDENT | Postfix "." IDENT | Postfix "[" Expr "]" .
 IfStmt      = "if" "(" Expr ")" [ TERM ] Stmt [ [ TERM ] "else" [ TERM ] Stmt ] .
 WhileStmt   = "while" "(" Expr ")" [ TERM ] Stmt .
 ForStmt     = "for" "(" [ ForInit ] ";" [ Expr ] ";" [ Expr ] ")" [ TERM ] Stmt .
@@ -375,6 +384,8 @@ cleanup()             // 与 if 无关
 2.4.8 `break` 跳出最内层的 `while`、`for` 或 `switch`。
 
 2.4.9 nmsl 没有 `do`-`while`、for-each、`continue`、`goto` 语句。遍历数组使用下标。
+
+2.4.10 **多变量的识别。** 一条语句以 `IDENT ","` 开头时，parser 将其判定为多变量赋值 `MultiAssign`。判定同样只向前看 2 个记号。多变量声明只能用 `var`；`int n, error err = f()` 是语法错误。
 
 ### 2.5 表达式
 
@@ -429,7 +440,7 @@ Primary     = IDENT | "this" | INT_LIT | FLOAT_LIT | STRING_LIT | CHAR_LIT
 
 2.5.4 **lambda。** lambda 的体只能是单个表达式。lambda 的参数没有类型注解。lambda 的语义见 4.6。
 
-2.5.5 **内置泛型构造。** `List<T>()` 与 `Map<K, V>()` 创建内置容器（8.5）。这是 nmsl 中不经过工厂创建对象的唯一方式。
+2.5.5 **内置泛型构造。** `List<T>()` 与 `Map<K, V>()` 创建内置容器（8.5）。这是 nmsl 中不经过工厂创建对象的唯一语法。标准库函数（如 `errors.New`，8.4.2）在运行时内部创建对象，不受 5.5 约束。
 
 ### 2.6 类型表达式
 
@@ -505,6 +516,7 @@ typedef struct {
 | 任意类名 | OBJECT |
 | `T[]` | ARRAY |
 | `List<T>`、`Map<K, V>` | 内置容器（OBJECT） |
+| `error` | 内置类 `error`（OBJECT），见 4.8 |
 
 3.2.1 `short` 与 `number` 完全相同。在 64 位 Linux 上 `short` 是 64 位的。
 
@@ -715,6 +727,8 @@ else
     ...
 ```
 
+Go 的惯用写法 `if (err != null)` 同样永远不进入，见 4.8.5。
+
 #### 3.8.7 null 与「未初始化」不同
 
 nmsl 只有一种空值。未初始化的变量不是空值，它是未定义的。三种未初始化的结果如下：
@@ -921,6 +935,14 @@ declared and not used: username
 
 4.3.5 入口方法（5.2）的参数 `args` 不参与统计。入口方法由整行字符串比较识别，codegen 为它直接写出固定的 C 函数头 `int main(int argc, char **argv)`，再由运行时把 `argv` 转换为 `args`；`args` 因此不经过变量表。入口方法体中声明的局部变量照常统计。
 
+4.3.6 多变量声明 `var a, b = f()` 中的每个变量分别统计。`var n, err = f()` 之后不再出现 `err`，是编译错误：
+
+```
+declared and not used: err
+```
+
+这条规则保证每一个返回的错误都被写进代码（4.8.6）。
+
 ### 4.4 隐式全局变量
 
 4.4.1 对一个既不是局部变量、也不是参数、也不是字段的名字赋值，codegen 在 C 文件顶部生成一个同名的全局 `Value`，初值为 `null`。
@@ -988,6 +1010,78 @@ lambda 不捕获外部的局部变量。体中出现的外部局部变量名，�
 4.7.1 `return expr` 把 expr 按返回类型转换后返回。`return` 不带表达式，或执行到方法末尾，返回 `null`。
 
 4.7.2 `void` 方法的调用结果是 `null`。
+
+4.7.3 多返回值方法的 `return` 见 4.8.2。
+
+### 4.8 错误
+
+nmsl 的错误是值。可能失败的方法多返回一个 `error`，调用方自己判断。
+
+4.8.1 **error 类型。** `error` 是内置类，有两个字段：`message`（String）与 `cause`（error 或 `null`）。error 只能由标准库函数创建（8.4.2）。没有错误用 `null` 表示，与 3.8 的 `null` 是同一个值。
+
+4.8.2 **多返回值的实现。** `return a, b` 把各个表达式按对应位置的返回类型转换（3.3）后，按 `return` 中**实际写出的表达式个数**打包成一个堆上的数组，作为一个 Value 返回。接收方按下标取出各个元素。
+
+```
+(number, error) parseAge(String s)
+    var n, err = ParseInt(s)
+    if (!nulls.Is(err))
+        return 0, errors.Wrap(err, "parseAge")
+    return n, null
+```
+
+4.8.3 **接收。** `var a, b = f()` 与 `a, b = f()` 依次取数组的第 0、1……个元素。取值不做越界检查（3.7.2），由此：
+
+| 情形 | 结果 |
+|---|---|
+| `var r = f()`，只写一个变量 | 不是错误。r 得到整个数组（ARRAY） |
+| 接收的变量比数组元素多 | 多出的变量取到数组之后的内存，由目标平台定义 |
+| `return 5` 写在 `(number, error)` 方法中 | 数组只有 1 个元素，接收方的 `err` 取到数组之后的内存 |
+| 方法执行到末尾没有 `return`，或 `return` 不带表达式 | 方法返回 `null`；对 `null` 取下标得到 `null`（3.8.1），所以每个接收变量都是 `null`，即「成功，值为 null」 |
+| 接收的不是数组（例如普通方法的返回值） | 按下标规则取值：数字、对象等非数组值取下标，结果由目标平台定义 |
+
+4.8.4 **类型转换。** 每个返回值按声明的返回类型转换（3.3）。`return "12abc", null` 在 `(number, error)` 方法中返回 12 与 `null`。
+
+4.8.5 **判断有没有错误。** `err != null` 是运算，有一边是 `null` 时结果是 `null`（3.8.6）：
+
+| 写法 | err 为 `null`（成功） | err 为 error（失败） |
+|---|---|---|
+| `if (err != null)` | 不进入 | **不进入** |
+| `if (err == null)` | 不进入 | 不进入 |
+| `if (!nulls.Is(err))` | 不进入 | 进入 |
+
+官方惯用法是：
+
+```
+var v, err = f()
+if (!nulls.Is(err))
+    return null, err
+```
+
+`if (err != null)` 能通过编译，也满足 4.3 的未使用检查，但永远不进入。
+
+4.8.6 **丢弃。**
+
+- 把调用写成语句 `f()`，丢弃全部返回值，不是错误（4.3.4）。
+- `var v, err = f()` 之后不再使用 `err`，是编译错误（4.3.6）。
+- 写一次 `if (err != null)` 即满足 4.3.6。
+- `var v, _ = f()` 合法。`_` 按 4.4 成为一个全局变量。
+
+4.8.7 **哨兵错误。** 哨兵错误写作静态字段：
+
+```
+class Store
+    static error ErrNotFound = errors.New("not found")
+    public static error getErrNotFound()
+        return ErrNotFound
+    public static void setErrNotFound(error e)
+        ErrNotFound = e
+```
+
+哨兵错误是静态字段，按 5.4.2 必须有 getter 与 setter。任何代码都可以调用 `setErrNotFound` 替换它。
+
+静态字段按初始化顺序（6.7）取得初值。初始化之前读到的静态字段是 `null`（3.8.7）。因此，当返回 `Store.ErrNotFound` 的代码先于 `Store` 初始化执行时，返回的是 `null`，调用方得到的是「没有错误」。
+
+4.8.8 **panic。** 内置函数 `panic(msg)` 先 `print(msg)`，再调用 C 的 `abort()`，进程收到 SIGABRT 终止（7.5）。msg 经由 stdout 输出，不刷新缓冲区（7.6.2）：输出到终端时可见，输出到管道或文件时丢失。panic 之后无法恢复；`defer` 与 `recover` 是保留字（1.6.2）。
 
 ---
 
@@ -1237,13 +1331,14 @@ runtime: goroutine stack exceeds 1000000000-byte limit
 
 ### 7.5 进程终止
 
-nmsl 没有运行时错误。一个值不符合预期时，只有两种结果：`null` 静默传染，或者进程被信号终止。运行时不安装信号处理函数，因此进程终止时，可见的只有 shell 输出的一行：
+nmsl 没有运行时错误。错误是值（4.8），不是运行时事件。一个值不符合预期时，只有两种结果：`null` 静默传染，或者进程被信号终止。运行时不安装信号处理函数，因此进程终止时，可见的只有 shell 输出的一行：
 
 | 原因 | shell 输出 | 信号 | 退出码 |
 |---|---|---|---|
 | 访问未映射的内存：数组越界、写字符串字面量、把数字 coerce 成对象后访问字段 | `Segmentation fault (core dumped)` | SIGSEGV | 139 |
 | `number` 除以 0 或对 0 取余 | `Floating point exception` | SIGFPE | 136 |
 | `assert` 失败 | `Aborted (core dumped)` | SIGABRT | 134 |
+| `panic(msg)` | `Aborted (core dumped)` | SIGABRT | 134 |
 | 内存耗尽（7.1.2） | `Killed` | SIGKILL（OOM killer） | 137 |
 
 7.5.1 进程终止时不输出堆栈，不输出行号。
@@ -1272,11 +1367,11 @@ nmsl 没有运行时错误。一个值不符合预期时，只有两种结果：
 
 - 有 C 标准库对应物的函数，是一层薄包装，名字与参数顺序照搬 C，名字全小写。
 - 没有 C 对应物的函数，照着 Go 标准库编写，名字首字母大写。
-- `nulls` 照着 Go 的 `errors` 包编写。
+- `errors` 照着 Go 的 `errors` 包编写。
 
 8.1.2 由于归一化保留首字母（1.5.2），`Replace` 与 `replace` 是两个不同的名字；`nulls.Is` 与 `nulls.is` 也是两个不同的名字。调用不存在的名字，结果是 `null`（5.7.2）。
 
-8.1.3 标准库不需要导入。标准库的类名（`List`、`Map`、`nulls`、`time`、`math`）与用户类共享全局命名空间（6.4.3）。
+8.1.3 标准库不需要导入。标准库的类名（`List`、`Map`、`nulls`、`errors`、`time`、`math`）与用户类共享全局命名空间（6.4.3）。
 
 ### 8.2 内置函数
 
@@ -1291,8 +1386,21 @@ nmsl 没有运行时错误。一个值不符合预期时，只有两种结果：
 | `exit(n)` | 见 7.4.3 |
 | `readLine()` | 见 7.6.3 |
 | `assert(cond)` | C 的 `assert`。cond 为假（含 `null`）时向 stderr 写一行信息，进程收到 SIGABRT 终止 |
+| `panic(msg)` | 见 4.8.8 |
+| `ParseInt(s)` | 返回 `(number, error)`。s 不是完整的十进制整数时，返回 `0` 与一个 error，`message` 为 `ParseInt: parsing "s": invalid syntax`（照抄 Go 的 `strconv.Atoi`）。Go 风格 |
+| `atol(s)` | 返回 `number`。读到第一个非数字字符为止，失败时返回 0，不报告错误，不修改 `errno`。libc 风格 |
+| `ReadFile(path)` | 返回 `(String, error)`。Go 风格 |
 
 `typeof` 是运算符，见 3.13。
+
+8.2.1 **两种错误约定。** 按 8.1.1 的来源规则，标准库同时存在两种错误约定：
+
+| 来源 | 约定 | 函数 |
+|---|---|---|
+| Go 风格 | 返回 `(值, error)` | `ParseInt`、`ReadFile` |
+| libc 风格 | 失败时返回 `null` 或 -1，原因写入全局变量 `errno`（number） | `readLine`；`atol` 不报告任何失败 |
+
+`errno` 是运行时提供的全局变量，读取 C 的 `errno`。它只在失败时被设置，成功时不清零。
 
 ### 8.3 字符串
 
@@ -1313,18 +1421,31 @@ nmsl 没有运行时错误。一个值不符合预期时，只有两种结果：
 
 8.3.4 字符串函数的结果为空串时，返回 `null`（3.8.4）。
 
-### 8.4 nulls
+### 8.4 nulls 与 errors
 
-API 与 Go 的 `errors` 包一一对应：
+#### 8.4.1 nulls
 
 | 函数 | 实现 |
 |---|---|
 | `nulls.Is(x)` | x 为 null 时返回 1，否则 0。唯一不被 null 传染的判断 |
 | `nulls.Coalesce(a, b, ...)` | 返回第一个不是 null 的参数；全部为 null 时返回 null |
-| `nulls.New(msg)` | `return NUL;`，msg 不被保留 |
-| `nulls.Wrap(x, ctx)` | x 为 null 时 `return NUL;`，ctx 不被保留；否则返回 x |
-| `nulls.Unwrap(x)` | `return x;` |
-| `nulls.Join(a, b, ...)` | `return NUL;` |
+
+#### 8.4.2 errors
+
+API 照着 Go 的 `errors` 包编写：
+
+| 函数 | 行为 |
+|---|---|
+| `errors.New(msg)` | 创建一个 error，`message` 为 msg，`cause` 为 `null` |
+| `errors.Wrap(err, ctx)` | 创建一个 error，`message` 为 `ctx + ": " + err.message`，`cause` 为 err。**不检查 err 是否为 `null`** |
+| `errors.Unwrap(err)` | 返回 `err.cause` |
+| `errors.Is(err, target)` | 沿 `cause` 链逐个用 `==` 与 target 比较 |
+
+8.4.2.1 `errors.New("x") == errors.New("x")` 为假：两个 error 是两个对象，`==` 比较指针（3.11.1）。比较错误请使用哨兵错误（4.8.7）与 `errors.Is`。
+
+8.4.2.2 `errors.Wrap(null, "load")` 返回一个真正的 error，`message` 为 `"load: "`（`null` 与字符串拼接得到 `"load: "`，3.8.3）。不先判断就包装，「没有错误」会变成一个错误。
+
+8.4.2.3 `errors.Is(null, target)` 的结果是 `null`（3.8.1），在条件中为假。
 
 ### 8.5 List 与 Map
 
@@ -1394,10 +1515,12 @@ print(t1.second == t2.second)    // 1
 ### 8.8 完整清单
 
 ```
-内置函数   print len is make spawn sleep exit readLine assert
+内置函数   print len is make spawn sleep exit readLine assert panic
 运算符     typeof
 字符串     strlen strstr strcmp format Replace Split
-nulls      nulls.Is nulls.Coalesce nulls.New nulls.Wrap nulls.Unwrap nulls.Join
+nulls      nulls.Is nulls.Coalesce
+errors     errors.New errors.Wrap errors.Unwrap errors.Is
+错误约定   panic ParseInt atol ReadFile errno
 容器       List<T>()  .add .get     Map<K, V>()  .put .get
 时间       time.now time.format
 数学       math.random math.abs math.pow
@@ -1692,6 +1815,7 @@ nmsl 的宣传口号只使用字面意义上为真的陈述：
 | 零编译警告 | `-w`（9.1.3） |
 | 100% CI 通过率 | `nmsl run` 总是以 0 退出（9.4.2） |
 | 静态类型 | 类型在编译期写入每个赋值点（3.3） |
+| 编译器强制检查每一个错误 | 接收了却未使用的 err 是编译错误（4.3.6） |
 | 永久向后兼容 | 版本号永远是 1.0（10.1） |
 
 ---
@@ -1703,7 +1827,7 @@ nmsl 的宣传口号只使用字面意义上为真的陈述：
 ```
 关键字   class extends import public private static var if else while for
          switch case default break return this typeof true false null
-保留字   new try catch throw interface goto go
+保留字   new try catch throw interface goto go defer recover
 ```
 
 ### A.2 三种「没有初始化」

@@ -135,36 +135,16 @@ User u = UserFactory.craete()   // 方法名拼错，u 是 null
 
 ## nulls 包
 
-`nulls` 包的 API 与 Go 的 `errors` 包一一对应。如果你写过 Go，你已经会用它了。
+`nulls` 只有两个函数：
 
 | 函数 | 作用 |
 |---|---|
 | `nulls.Is(x)` | x 是 null 时返回 1，否则返回 0 |
 | `nulls.Coalesce(a, b, ...)` | 返回第一个不是 null 的参数；都是 null 时返回 null |
-| `nulls.New(msg)` | 返回 `null` |
-| `nulls.Wrap(x, ctx)` | x 是 null 时返回 `null`；否则返回 x |
-| `nulls.Unwrap(x)` | 返回 x |
-| `nulls.Join(a, b, ...)` | 返回 `null` |
 
-### nulls.New
+判空用 `Is`，默认值用 `Coalesce`。两个函数，覆盖全部需求。
 
-```
-var result = nulls.New("用户不存在")
-```
-
-`nulls.New` 创建一个 `null`。`msg` 是写给代码读者看的：它说明了这个 `null` 的含义，运行时不需要保存它。
-
-### nulls.Wrap
-
-```
-return nulls.Wrap(user, "加载用户时")
-```
-
-`user` 是 `null` 时，结果是 `null`；`ctx` 帮助读者理解这一行的意图。`user` 不是 `null` 时，原样返回。
-
-### nulls.Join
-
-把多个 `null` 合并成一个 `null`。由于 nmsl 只有一个 `null`，合并的结果总是 `null`。
+需要表达「出错了」？那不是 null 的工作。请返回一个 `error`，参见[错误处理](errors.md)。在 nmsl 里，「没有错误」本身就是 null。
 
 ## 推荐模式
 
@@ -208,5 +188,6 @@ assert(!nulls.Is(user))
 
 ## 延伸阅读
 
+- [错误处理](errors.md)
 - [《Nulls are values》](../blog/2026-01-14-nulls-are-values.md)
 - [相等性速查表](equality.md)

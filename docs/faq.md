@@ -14,9 +14,17 @@
 
 答：因为它们是同一个值。
 
-**问：`nulls.New("连接失败")` 返回什么？**
+**问：我从 Go 过来，`if (err != null)` 为什么从来不进去？**
 
-答：`null`。消息是写给读代码的人看的。
+答：`!=` 是运算，运算碰到 `null` 结果是 `null`，在条件里为假。err 是 error 的时候，右边那个 `null` 仍然是 `null`。请写 `if (!nulls.Is(err))`。参见[错误处理](errors.md)。
+
+**问：那为什么编译器不提醒我？**
+
+答：编译器检查的是 err 有没有被使用。`if (err != null)` 使用了 err。我们相信开发者。
+
+**问：为什么我的哨兵错误有时候是 null？**
+
+答：定义它的类还没初始化。请把它放进文件名字母序靠前的文件，例如 `AErrors.nmsl`。
 
 **问：我写了 `int x`，为什么 `nulls.Is(x)` 是 0？**
 
@@ -102,7 +110,7 @@
 
 **问：为什么有 `try`、`catch`、`throw` 却不能用？**
 
-答：它们是保留字，reserved for future use，将在 nmsl 2 中提供。参见[《为什么 nmsl 没有错误处理》](../blog/2026-07-28-no-error-handling.md)。
+答：它们是保留字，reserved for future use，将在 nmsl 2 中提供。你不需要它们：错误是值，用多返回值返回。参见[错误处理](errors.md)与[《Errors are values, and so is null》](../blog/2026-07-28-errors-are-values.md)。
 
 **问：为什么没有 `++`？**
 
